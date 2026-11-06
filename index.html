@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>週預算記帳</title>
+  <meta name="description" content="每週生活費預算記帳，電腦和手機同步">
+  <meta name="theme-color" content="#24489b">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="週預算">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="banner" class="banner" hidden></div>
+
+  <!-- 啟動中 -->
+  <div id="boot" class="boot">載入中…</div>
+
+  <!-- 登入 -->
+  <section id="login" class="login" hidden>
+    <h1>週預算記帳</h1>
+    <p>登入後，公司電腦、家裡電腦和手機看到的是同一份帳。</p>
+    <button id="signInBtn" class="btn btn-primary" type="button">用 Google 帳號登入</button>
+    <p id="loginMsg" class="login-msg" role="alert"></p>
+  </section>
+
+  <div id="app" hidden>
+    <nav class="tabbar" aria-label="頁面">
+      <span class="brand">週預算記帳</span>
+      <button type="button" data-view="home" aria-current="page">記帳</button>
+      <button type="button" data-view="list">明細</button>
+      <button type="button" data-view="stats">統計</button>
+      <button type="button" data-view="settings">設定</button>
+    </nav>
+
+    <main>
+      <!-- 記帳（首頁） -->
+      <section id="view-home" class="view">
+        <div id="hero" class="hero"></div>
+
+        <div class="home-grid">
+          <form id="addForm" class="panel add-form" autocomplete="off" novalidate>
+            <h2>記一筆</h2>
+            <label class="amount-field">
+              <span class="sr-only">金額</span>
+              <span class="currency" aria-hidden="true">$</span>
+              <input id="fAmount" name="amount" type="number" inputmode="decimal" min="0" step="any" placeholder="0" required>
+            </label>
+
+            <fieldset>
+              <legend>分類</legend>
+              <div id="catChips" class="chips"></div>
+            </fieldset>
+
+            <fieldset>
+              <legend>付款方式</legend>
+              <div id="payChips" class="chips"></div>
+            </fieldset>
+
+            <div class="row-2">
+              <label class="field">
+                <span>品項</span>
+                <input id="fItem" name="item" type="text" list="itemSuggest" maxlength="100" placeholder="例如：午餐">
+              </label>
+              <label class="field">
+                <span>日期</span>
+                <input id="fDate" name="date" type="date" required>
+              </label>
+            </div>
+            <label class="field">
+              <span>備註</span>
+              <input id="fNote" name="note" type="text" maxlength="500">
+            </label>
+            <datalist id="itemSuggest"></datalist>
+            <p id="formMsg" class="form-msg" role="alert"></p>
+            <button class="btn btn-primary btn-block" type="submit">記下這筆</button>
+          </form>
+
+          <section id="dayPanel" class="panel day-panel" aria-live="polite">
+            <div id="dayHead"></div>
+            <ul id="dayList" class="entry-list"></ul>
+            <label class="field journal">
+              <span id="journalLabel">今天的心得</span>
+              <textarea id="journal" rows="3" maxlength="5000" placeholder="今天花錢的感想，寫了會自動存"></textarea>
+            </label>
+            <p id="journalState" class="hint"></p>
+          </section>
+        </div>
+      </section>
+
+      <!-- 明細 -->
+      <section id="view-list" class="view" hidden>
+        <h2 class="page-title">明細</h2>
+        <div id="weekFilter" class="chips chips-scroll" role="group" aria-label="選擇週次"></div>
+        <div id="listBody"></div>
+      </section>
+
+      <!-- 統計 -->
+      <section id="view-stats" class="view" hidden>
+        <h2 class="page-title">每週明細</h2>
+        <div class="table-wrap">
+          <table id="weekTable" class="data-table"></table>
+        </div>
+        <p class="hint">沒花完的錢留在「剩餘」，不帶到下週花。</p>
+
+        <div class="stats-head">
+          <h2 class="page-title">錢花在哪裡</h2>
+          <label class="field inline">
+            <span class="sr-only">範圍</span>
+            <select id="catRange"></select>
+          </label>
+        </div>
+        <ul id="catBars" class="cat-bars"></ul>
+
+        <h2 class="page-title">分類 × 週</h2>
+        <div class="table-wrap">
+          <table id="catTable" class="data-table matrix"></table>
+        </div>
+      </section>
+
+      <!-- 設定 -->
+      <section id="view-settings" class="view" hidden>
+        <h2 class="page-title">預算</h2>
+        <form id="settingsForm" class="panel settings-form" novalidate>
+          <div class="row-3">
+            <label class="field">
+              <span>每週生活費預算</span>
+              <input id="sBudget" type="number" inputmode="numeric" min="0" step="1" required>
+            </label>
+            <label class="field">
+              <span>第一週開始日</span>
+              <input id="sStart" type="date" required>
+            </label>
+            <label class="field">
+              <span>計畫週數</span>
+              <input id="sWeeks" type="number" inputmode="numeric" min="1" max="104" step="1" required>
+            </label>
+          </div>
+          <p class="hint">每 7 天算一週。換新的發薪週期時，把開始日改成新的發薪日；開始日之前的帳目不會出現在統計裡，但不會被刪掉。</p>
+          <div class="row-2">
+            <label class="field">
+              <span>分類（一行一個）</span>
+              <textarea id="sCats" rows="9"></textarea>
+            </label>
+            <label class="field">
+              <span>付款方式（一行一個）</span>
+              <textarea id="sPays" rows="9"></textarea>
+            </label>
+          </div>
+          <p class="hint">改分類名稱不會改到已經記的帳；舊名稱會另外列在統計裡。</p>
+          <p id="settingsMsg" class="form-msg" role="alert"></p>
+          <button class="btn btn-primary" type="submit">儲存設定</button>
+        </form>
+
+        <h2 class="page-title">資料</h2>
+        <div class="panel">
+          <p>從 Excel 匯入：在 Excel 選「另存新檔 → CSV」，第一列要有「日期、品項、分類、金額、付款方式、備註、心得」這些標題（週次不用）。</p>
+          <div class="btn-row">
+            <label class="btn btn-ghost file-btn">
+              選擇 CSV 檔
+              <input id="importFile" type="file" accept=".csv,text/csv">
+            </label>
+            <button id="exportBtn" class="btn btn-ghost" type="button">匯出 CSV</button>
+          </div>
+          <div id="importPreview" class="import-preview" hidden></div>
+        </div>
+
+        <h2 class="page-title">帳號</h2>
+        <div class="panel">
+          <p id="accountInfo"></p>
+          <div class="btn-row">
+            <button id="signOutBtn" class="btn btn-ghost" type="button">登出</button>
+            <button id="clearDemoBtn" class="btn btn-ghost btn-danger" type="button" hidden>清除示範資料</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 編輯一筆 -->
+  <dialog id="editDialog" class="sheet" aria-labelledby="editTitle">
+    <form id="editForm" method="dialog" novalidate>
+      <h2 id="editTitle">編輯</h2>
+      <div class="row-2">
+        <label class="field">
+          <span>金額</span>
+          <input id="eAmount" type="number" inputmode="decimal" min="0" step="any" required>
+        </label>
+        <label class="field">
+          <span>日期</span>
+          <input id="eDate" type="date" required>
+        </label>
+      </div>
+      <label class="field">
+        <span>品項</span>
+        <input id="eItem" type="text" maxlength="100" list="itemSuggest">
+      </label>
+      <div class="row-2">
+        <label class="field">
+          <span>分類</span>
+          <select id="eCat"></select>
+        </label>
+        <label class="field">
+          <span>付款方式</span>
+          <select id="ePay"></select>
+        </label>
+      </div>
+      <label class="field">
+        <span>備註</span>
+        <input id="eNote" type="text" maxlength="500">
+      </label>
+      <p id="editMsg" class="form-msg" role="alert"></p>
+      <div class="sheet-actions">
+        <button id="deleteBtn" class="btn btn-ghost btn-danger" type="button">刪除</button>
+        <span class="spacer"></span>
+        <button id="cancelEdit" class="btn btn-ghost" type="button">取消</button>
+        <button class="btn btn-primary" type="submit" value="save">儲存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden>
+    <span id="toastText"></span>
+    <button id="toastAction" type="button" hidden></button>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

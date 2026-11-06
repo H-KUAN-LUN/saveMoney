@@ -1,0 +1,4 @@
+# 帳目資料不要放進公開 repo
+*.csv
+*.xlsx
+.DS_Store
