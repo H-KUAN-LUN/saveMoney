@@ -240,6 +240,13 @@ function renderHero() {
   const tone = over ? 'over' : cw.status === '快用完' ? 'warn' : 'ok';
   const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.day : null;
 
+  // 預算為什麼變了：上週超支扣過來、這週超支補回、或省下的錢存起來
+  const notes = [];
+  if (cw.carry > 0) notes.push(`上週超支 ${money(cw.carry)}，這週預算從 ${money(cw.base)} 調成 ${money(cw.budget)}。`);
+  if (over) notes.push(`超支的 ${money(s.nextCarry)} 會從下週預算扣掉。`);
+  else if (s.cut >= 0.5) notes.push(`為了補回超支，每天預算比平常的 ${money(s.dailyBase)} 少 ${money(s.cut)}。`);
+  else if (s.savedThisWeek >= 0.5) notes.push(`前幾天省下的 ${money(s.savedThisWeek)} 會存起來，不加進每天預算。`);
+
   hero.className = `hero tone-${tone}`;
   hero.innerHTML = `
     <div class="hero-meta">
@@ -250,14 +257,15 @@ function renderHero() {
     <p class="hero-amount">${money(Math.abs(cw.remaining))}</p>
     <p class="hero-sub">${
       over
-        ? `這週還有 ${s.remainingDays} 天（含今天）。`
-        : `含今天還有 ${s.remainingDays} 天，每天可花 <b>${money(Math.floor(s.perDay))}</b>`
+        ? `這週還有 ${s.daysLeft} 天（含今天）。`
+        : `含今天還有 ${s.daysLeft} 天，每天預算 <b>${money(s.todayBudget)}</b>`
     }</p>
-    <div class="meter" role="meter" aria-label="本週已花" aria-valuemin="0" aria-valuemax="${cw.budget}" aria-valuenow="${cw.spent}">
-      <span style="width:${Math.min(100, cw.rate * 100)}%"></span>
+    <div class="hero-adjust">${notes.map((n) => `<p>${n}</p>`).join('')}</div>
+    <div class="meter" role="meter" aria-label="本週已花" aria-valuemin="0" aria-valuemax="${Math.max(0, cw.budget)}" aria-valuenow="${cw.spent}">
+      <span style="width:${cw.rate == null ? 100 : Math.min(100, cw.rate * 100)}%"></span>
     </div>
-    <p class="meter-text">已花 ${money(cw.spent)}，預算 ${money(cw.budget)}（${pct(cw.rate)}）</p>
-    <ol class="strip" aria-label="本週每天花費，虛線是每日平均 ${money(s.avg)}">
+    <p class="meter-text">已花 ${money(cw.spent)}，預算 ${money(cw.budget)}${cw.rate == null ? '' : `（${pct(cw.rate)}）`}</p>
+    <ol class="strip" aria-label="本週每天花費，虛線是當天預算">
       ${s.days.map(dayCell).join('')}
     </ol>
     ${
@@ -273,14 +281,18 @@ function renderHero() {
 
 function dayCell(d) {
   const sel = d.date === state.selDay;
-  const h = d.avg > 0 ? Math.min(100, (d.spent / (d.avg * 2)) * 100) : 0;
-  const cls = ['day', sel && 'is-sel', d.isToday && 'is-today', d.isFuture && 'is-future', d.spent > d.avg && 'is-over']
+  // 長條的刻度固定是平常每日預算的兩倍；虛線是當天預算，補超支的日子虛線會變低
+  const scale = state.summary.dailyBase * 2;
+  const h = scale > 0 ? Math.min(100, (d.spent / scale) * 100) : 0;
+  const line = scale > 0 ? Math.min(100, (d.budget / scale) * 100) : 50;
+  const over = !d.isFuture && d.spent > d.budget + 0.005;
+  const cls = ['day', sel && 'is-sel', d.isToday && 'is-today', d.isFuture && 'is-future', over && 'is-over']
     .filter(Boolean)
     .join(' ');
   return `<li><button type="button" class="${cls}" data-day="${d.date}" aria-pressed="${sel}"
-      aria-label="${dayLabel(d.date)}，花了 ${money(d.spent)}${d.status ? `，${d.status}平均` : ''}">
+      aria-label="${dayLabel(d.date)}，當天預算 ${money(d.budget)}，花了 ${money(d.spent)}">
     <span class="day-wd">${d.isToday ? '今天' : d.weekday}</span>
-    <span class="day-bar" aria-hidden="true"><span style="height:${h}%"></span></span>
+    <span class="day-bar" aria-hidden="true" style="--line:${line}%"><span style="height:${h}%"></span></span>
     <span class="day-date">${C.shortDate(d.date)}</span>
     <span class="day-amt">${d.spent ? money(d.spent) : '–'}</span>
   </button></li>`;
@@ -304,18 +316,24 @@ function renderDay() {
   const d = state.selDay;
   const list = state.entries.filter((e) => e.date === d).sort(byTime);
   const spent = list.reduce((a, e) => a + e.amount, 0);
-  const avg = state.summary.avg;
+  const b = state.summary.dayBudget.get(d); // 只有本週和過去的日子有當天預算
   const isFuture = d > state.today;
-  let compare = '';
-  if (!isFuture && list.length) {
-    if (spent > avg) compare = `，比每日平均多 <b class="neg">${money(spent - avg)}</b>`;
-    else if (spent < avg) compare = `，比每日平均少 <b class="pos">${money(avg - spent)}</b>`;
-    else compare = '，剛好是每日平均';
-  }
+  let sum;
+  if (d === state.today && b != null) {
+    const left = b - spent;
+    sum =
+      `今天預算 ${money(b)}${list.length ? `，花了 ${money(spent)}` : ''}，` +
+      (left > -0.5 ? `還可以花 <b class="pos">${money(left)}</b>` : `超出 <b class="neg">${money(-left)}</b>`);
+  } else if (isFuture) sum = '這天還沒到。';
+  else if (!list.length) sum = '這天還沒有記帳。';
+  else if (b == null) sum = `花了 ${money(spent)}`;
+  else if (spent > b + 0.005) sum = `花了 ${money(spent)}，比當天預算 ${money(b)} 多 <b class="neg">${money(spent - b)}</b>`;
+  else if (spent < b - 0.005) sum = `花了 ${money(spent)}，比當天預算 ${money(b)} 少 <b class="pos">${money(b - spent)}</b>`;
+  else sum = `花了 ${money(spent)}，剛好是當天預算`;
   const title = d === state.today ? `今天 ${dayLabel(d)}` : dayLabel(d);
   $('dayHead').innerHTML = `
     <h2>${title}</h2>
-    <p class="day-sum">${list.length ? `花了 ${money(spent)}${compare}` : isFuture ? '這天還沒到。' : '這天還沒有記帳。'}</p>`;
+    <p class="day-sum">${sum}</p>`;
   $('dayList').innerHTML = state.loaded ? list.map(entryItem).join('') : '';
   renderJournal();
 }
@@ -571,21 +589,21 @@ const statusBadge = (s) => (s ? `<span class="badge badge-${{ OK: 'ok', 快用�
 function renderStats() {
   const s = state.summary;
   $('weekTable').innerHTML = `
-    <thead><tr><th>週次</th><th>期間</th><th class="num">已花</th><th class="num">剩餘</th><th class="num">使用率</th><th>狀態</th></tr></thead>
+    <thead><tr><th>週次</th><th>期間</th><th class="num">預算</th><th class="num">已花</th><th class="num">剩餘</th><th>狀態</th></tr></thead>
     <tbody>${s.weeks
       .map(
         (w) => `<tr class="${w.isCurrent ? 'is-current' : ''}">
           <td>${w.week}${w.isCurrent ? '<span class="sr-only">（本週）</span>' : ''}</td>
           <td class="nowrap">${C.shortDate(w.start)}–${C.shortDate(w.end)}</td>
+          <td class="num">${money(w.budget)}${w.carry ? `<span class="cut">扣 ${money(w.carry)}</span>` : ''}</td>
           <td class="num">${money(w.spent)}</td>
           <td class="num ${w.remaining < 0 ? 'neg' : ''}">${money(w.remaining)}</td>
-          <td class="num">${pct(w.rate)}</td>
           <td>${statusBadge(w.status)}</td>
         </tr>`,
       )
       .join('')}</tbody>
-    <tfoot><tr><th>合計</th><td>${s.weeks.length} 週預算 ${money(s.totals.budget)}</td><td class="num">${money(s.totals.spent)}</td>
-      <td class="num ${s.totals.remaining < 0 ? 'neg' : ''}">${money(s.totals.remaining)}</td><td class="num">${pct(s.totals.rate)}</td><td></td></tr></tfoot>`;
+    <tfoot><tr><th>合計</th><td></td><td class="num">${money(s.totals.planned)}</td><td class="num">${money(s.totals.spent)}</td>
+      <td colspan="2" class="saved">已存下 ${money(s.totals.saved)}</td></tr></tfoot>`;
 
   const m = C.categoryMatrix(state.entries, state.settings, s.nWeeks);
 

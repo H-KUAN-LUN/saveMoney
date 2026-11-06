@@ -89,53 +89,104 @@ export function computeSummary(entries, settings, today) {
   }
 
   const nWeeks = Math.max(Number(settings.totalWeeks) || 1, curWeek, maxEntryWeek);
+  const dailyBase = budget / 7;
+
+  // 每週預算：超支的部分從下週扣掉；沒花完的錢存起來，不加到下週
   const weeks = [];
+  let debt = 0;
   for (let w = 1; w <= nWeeks; w++) {
     const spent = byWeek.get(w) || 0;
+    const carry = debt;
+    const wkBudget = budget - carry;
+    const remaining = wkBudget - spent;
     weeks.push({
       week: w,
       ...weekRange(w, start),
-      budget,
+      base: budget,
+      carry,
+      budget: wkBudget,
       spent,
-      remaining: budget - spent,
-      rate: budget === 0 ? 0 : spent / budget,
-      status: weekStatus(spent, budget),
+      remaining,
+      rate: wkBudget > 0 ? spent / wkBudget : null,
+      status: weekStatus(spent, wkBudget),
+      saved: w < curWeek ? Math.max(0, remaining) : 0,
       isCurrent: w === curWeek,
     });
+    debt = Math.max(0, -remaining);
   }
-  const totalBudget = weeks.reduce((s, w) => s + w.budget, 0);
-  const totalSpent = weeks.reduce((s, w) => s + w.spent, 0);
   const totals = {
-    budget: totalBudget,
-    spent: totalSpent,
-    remaining: totalBudget - totalSpent,
-    rate: totalBudget === 0 ? 0 : totalSpent / totalBudget,
+    planned: budget * nWeeks,
+    spent: weeks.reduce((s, w) => s + w.spent, 0),
+    saved: weeks.reduce((s, w) => s + w.saved, 0),
   };
 
   const cw = weeks[curWeek - 1];
-  // Excel：MAX(1, 開始日 + 週次*7 - TODAY())，含今天
+  // 含今天還剩幾天（Excel：MAX(1, 開始日 + 週次*7 - TODAY())）
   const remainingDays = Math.max(1, toDays(start) + curWeek * 7 - toDays(today));
-  const perDay = Math.max(0, cw.remaining) / remainingDays;
-  const avg = budget / 7;
+  const daysLeft = Math.min(7, remainingDays);
+
+  // 今天的預算 = 今天以前還沒花掉的錢 ÷ 含今天剩下的天數，但不超過平常的每日預算
+  let spentBeforeToday = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(cw.start, i);
+    if (d < today) spentBeforeToday += byDate.get(d) || 0;
+  }
+  const leftForDays = cw.budget - spentBeforeToday;
+  const todayBudget = Math.min(dailyBase, Math.max(0, leftForDays) / daysLeft);
+  const savedThisWeek = Math.max(0, leftForDays - dailyBase * daysLeft); // 前幾天省下、不加進每日預算的錢
+  const todaySpent = byDate.get(today) || 0;
+
+  // 每一天當天的預算（過去的日子照當時算；本週之後的日子先用今天的預算）
+  const dayBudget = new Map();
+  for (const wk of weeks.slice(0, curWeek)) {
+    let before = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(wk.start, i);
+      if (d > today) {
+        dayBudget.set(d, todayBudget);
+        continue;
+      }
+      dayBudget.set(d, Math.min(dailyBase, Math.max(0, wk.budget - before) / (7 - i)));
+      before += byDate.get(d) || 0;
+    }
+  }
 
   const days = [];
   for (let i = 0; i < 7; i++) {
     const date = addDays(cw.start, i);
     const spent = byDate.get(date) || 0;
     const isFuture = date > today;
+    const db = dayBudget.get(date);
     days.push({
       date,
       weekday: weekdayOf(date),
       spent,
-      avg,
-      balance: isFuture ? null : avg - spent,
-      status: isFuture ? '' : dayStatus(spent, avg),
+      budget: db,
+      balance: isFuture ? null : db - spent,
+      status: isFuture ? '' : dayStatus(spent, db),
       isToday: date === today,
       isFuture,
     });
   }
 
-  return { curWeek, nWeeks, weeks, totals, cw, remainingDays, perDay, avg, days, byDate };
+  return {
+    curWeek,
+    nWeeks,
+    weeks,
+    totals,
+    cw,
+    remainingDays,
+    daysLeft,
+    dailyBase,
+    todayBudget,
+    todaySpent,
+    savedThisWeek,
+    cut: dailyBase - todayBudget,
+    nextCarry: Math.max(0, -cw.remaining),
+    days,
+    dayBudget,
+    byDate,
+  };
 }
 
 /** 分類 × 週 的矩陣；不在清單裡的分類也列出來，合計才會對 */

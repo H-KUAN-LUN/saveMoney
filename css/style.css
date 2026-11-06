@@ -302,6 +302,16 @@ main {
   opacity: 0.85;
 }
 
+.hero-adjust {
+  margin-top: 6px;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.hero-adjust:empty {
+  display: none;
+}
+
 .hero-note {
   margin-top: 12px;
   font-size: 14px;
@@ -368,7 +378,7 @@ main {
   position: absolute;
   left: -2px;
   right: -2px;
-  top: 50%;
+  top: calc(100% - var(--line, 50%));
   border-top: 1px dashed rgba(255, 255, 255, 0.85);
 }
 
@@ -861,6 +871,20 @@ legend,
   padding-left: 8px;
 }
 
+.data-table tfoot td.saved {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--green);
+  text-align: right;
+}
+
+.data-table .cut {
+  display: block;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--red);
+}
+
 .data-table tr.is-current td,
 .data-table tr.is-current th,
 .data-table .is-current {
@@ -1151,7 +1175,7 @@ legend,
 
   .hero > .strip {
     grid-column: 2;
-    grid-row: 2 / 7;
+    grid-row: 2 / span 6;
     align-self: end;
     margin-top: 0;
   }
