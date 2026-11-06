@@ -240,11 +240,16 @@ function renderHero() {
   const tone = over ? 'over' : cw.status === '快用完' ? 'warn' : 'ok';
   const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.day : null;
 
-  // 預算為什麼變了：上週超支扣過來、這週超支補回、或省下的錢存起來
+  // 預算為什麼變了：之前超支分攤過來、這週前幾天超支、或省下的錢存起來
   const notes = [];
-  if (cw.carry > 0) notes.push(`上週超支 ${money(cw.carry)}，這週預算從 ${money(cw.base)} 調成 ${money(cw.budget)}。`);
-  if (over) notes.push(`超支的 ${money(s.nextCarry)} 會從下週預算扣掉。`);
-  else if (s.cut >= 0.5) notes.push(`為了補回超支，每天預算比平常的 ${money(s.dailyBase)} 少 ${money(s.cut)}。`);
+  if (cw.carry >= 0.5) notes.push(`之前超支的錢平均分攤下來，這週預算從 ${money(cw.base)} 調成 ${money(cw.budget)}。`);
+  if (over) {
+    notes.push(
+      cw.spreadCount > 1
+        ? `超支的 ${money(s.overNow)} 會平均分攤到後面 ${cw.spreadCount} 週，每週少約 ${money(s.overNow / cw.spreadCount)}。`
+        : `超支的 ${money(s.overNow)} 會從下週預算扣掉。`,
+    );
+  } else if (s.cut >= 0.5) notes.push(`這週前幾天超支，每天預算從 ${money(s.weekDaily)} 調成 ${money(s.todayBudget)}。`);
   else if (s.savedThisWeek >= 0.5) notes.push(`前幾天省下的 ${money(s.savedThisWeek)} 會存起來，不加進每天預算。`);
 
   hero.className = `hero tone-${tone}`;
@@ -589,20 +594,21 @@ const statusBadge = (s) => (s ? `<span class="badge badge-${{ OK: 'ok', 快用�
 function renderStats() {
   const s = state.summary;
   $('weekTable').innerHTML = `
-    <thead><tr><th>週次</th><th>期間</th><th class="num">預算</th><th class="num">已花</th><th class="num">剩餘</th><th>狀態</th></tr></thead>
+    <thead><tr><th>週次</th><th class="num">預算</th><th class="num">已花</th><th class="num">剩餘</th><th>狀態</th></tr></thead>
     <tbody>${s.weeks
       .map(
         (w) => `<tr class="${w.isCurrent ? 'is-current' : ''}">
-          <td>${w.week}${w.isCurrent ? '<span class="sr-only">（本週）</span>' : ''}</td>
-          <td class="nowrap">${C.shortDate(w.start)}–${C.shortDate(w.end)}</td>
+          <td><span class="wk">第 ${w.week} 週${w.isCurrent ? '<span class="sr-only">（本週）</span>' : ''}</span><span class="range">${C.shortDate(w.start)}–${C.shortDate(w.end)}</span></td>
           <td class="num">${money(w.budget)}${w.carry ? `<span class="cut">扣 ${money(w.carry)}</span>` : ''}</td>
           <td class="num">${money(w.spent)}</td>
-          <td class="num ${w.remaining < 0 ? 'neg' : ''}">${money(w.remaining)}</td>
+          <td class="num ${w.remaining < 0 ? 'neg' : ''}">${money(w.remaining)}${
+            w.spreadCount ? `<span class="cut">${w.spreadCount > 1 ? `分到後 ${w.spreadCount} 週` : '扣到下週'}</span>` : ''
+          }</td>
           <td>${statusBadge(w.status)}</td>
         </tr>`,
       )
       .join('')}</tbody>
-    <tfoot><tr><th>合計</th><td></td><td class="num">${money(s.totals.planned)}</td><td class="num">${money(s.totals.spent)}</td>
+    <tfoot><tr><th>合計</th><td class="num">${money(s.totals.planned)}</td><td class="num">${money(s.totals.spent)}</td>
       <td colspan="2" class="saved">已存下 ${money(s.totals.saved)}</td></tr></tfoot>`;
 
   const m = C.categoryMatrix(state.entries, state.settings, s.nWeeks);

@@ -878,6 +878,34 @@ legend,
   text-align: right;
 }
 
+.data-table .wk {
+  display: block;
+}
+
+.data-table .range {
+  display: block;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
+@media (max-width: 420px) {
+  .data-table .num {
+    font-size: 15px;
+  }
+
+  #weekTable th,
+  #weekTable td {
+    padding-left: 3px;
+    padding-right: 3px;
+  }
+
+  #weekTable th:first-child,
+  #weekTable td:first-child {
+    padding-left: 6px;
+  }
+}
+
 .data-table .cut {
   display: block;
   font-size: 12px;

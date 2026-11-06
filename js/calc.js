@@ -91,14 +91,28 @@ export function computeSummary(entries, settings, today) {
   const nWeeks = Math.max(Number(settings.totalWeeks) || 1, curWeek, maxEntryWeek);
   const dailyBase = budget / 7;
 
-  // 每週預算：超支的部分從下週扣掉；沒花完的錢存起來，不加到下週
+  // 每週預算：某週超支的錢，平均分攤到計畫剩下的每一週扣掉；沒花完的錢存起來，不加到之後
+  const planWeeks = Math.max(1, Number(settings.totalWeeks) || 1);
+  const ded = new Array(nWeeks + 2).fill(0); // 每週要扣的錢
+  const spread = (amount, from, count) => {
+    const per = Math.floor(amount / count);
+    const extra = amount - per * count; // 除不盡的部分，前面幾週各多扣 1 元
+    const whole = Math.floor(extra);
+    for (let k = 0; k < count; k++) ded[from + k] += per + (k < whole ? 1 : 0) + (k === 0 ? extra - whole : 0);
+  };
   const weeks = [];
-  let debt = 0;
   for (let w = 1; w <= nWeeks; w++) {
     const spent = byWeek.get(w) || 0;
-    const carry = debt;
+    const carry = ded[w];
     const wkBudget = budget - carry;
     const remaining = wkBudget - spent;
+    // 只有已經發生的超支（過去和本週）才往後分攤；計畫最後一週以後的超支就整筆扣到下週
+    let spreadCount = 0;
+    if (remaining < 0 && w <= curWeek) {
+      spreadCount = Math.max(1, planWeeks - w);
+      if (planWeeks - w >= 1) spread(-remaining, w + 1, spreadCount);
+      else ded[w + 1] += -remaining;
+    }
     weeks.push({
       week: w,
       ...weekRange(w, start),
@@ -107,12 +121,12 @@ export function computeSummary(entries, settings, today) {
       budget: wkBudget,
       spent,
       remaining,
+      spreadCount,
       rate: wkBudget > 0 ? spent / wkBudget : null,
       status: weekStatus(spent, wkBudget),
       saved: w < curWeek ? Math.max(0, remaining) : 0,
       isCurrent: w === curWeek,
     });
-    debt = Math.max(0, -remaining);
   }
   const totals = {
     planned: budget * nWeeks,
@@ -125,15 +139,16 @@ export function computeSummary(entries, settings, today) {
   const remainingDays = Math.max(1, toDays(start) + curWeek * 7 - toDays(today));
   const daysLeft = Math.min(7, remainingDays);
 
-  // 今天的預算 = 今天以前還沒花掉的錢 ÷ 含今天剩下的天數，但不超過平常的每日預算
+  // 今天的預算 = 今天以前還沒花掉的錢 ÷ 含今天剩下的天數，但不超過「這週預算 ÷ 7」
+  const weekDaily = Math.max(0, cw.budget) / 7;
   let spentBeforeToday = 0;
   for (let i = 0; i < 7; i++) {
     const d = addDays(cw.start, i);
     if (d < today) spentBeforeToday += byDate.get(d) || 0;
   }
   const leftForDays = cw.budget - spentBeforeToday;
-  const todayBudget = Math.min(dailyBase, Math.max(0, leftForDays) / daysLeft);
-  const savedThisWeek = Math.max(0, leftForDays - dailyBase * daysLeft); // 前幾天省下、不加進每日預算的錢
+  const todayBudget = Math.min(weekDaily, Math.max(0, leftForDays) / daysLeft);
+  const savedThisWeek = Math.max(0, leftForDays - weekDaily * daysLeft); // 前幾天省下、不加進每日預算的錢
   const todaySpent = byDate.get(today) || 0;
 
   // 每一天當天的預算（過去的日子照當時算；本週之後的日子先用今天的預算）
@@ -146,7 +161,7 @@ export function computeSummary(entries, settings, today) {
         dayBudget.set(d, todayBudget);
         continue;
       }
-      dayBudget.set(d, Math.min(dailyBase, Math.max(0, wk.budget - before) / (7 - i)));
+      dayBudget.set(d, Math.min(Math.max(0, wk.budget) / 7, Math.max(0, wk.budget - before) / (7 - i)));
       before += byDate.get(d) || 0;
     }
   }
@@ -178,11 +193,12 @@ export function computeSummary(entries, settings, today) {
     remainingDays,
     daysLeft,
     dailyBase,
+    weekDaily,
     todayBudget,
     todaySpent,
     savedThisWeek,
-    cut: dailyBase - todayBudget,
-    nextCarry: Math.max(0, -cw.remaining),
+    cut: weekDaily - todayBudget,
+    overNow: Math.max(0, -cw.remaining),
     days,
     dayBudget,
     byDate,
