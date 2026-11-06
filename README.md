@@ -26,7 +26,7 @@ firestore.rules         ← 貼到 Firebase 的安全規則
 1. 到 <https://console.firebase.google.com> →「建立專案」，名稱隨意（例如 `weekly-budget`），Google Analytics 可以關掉。
 2. 專案首頁點 `</>`（網頁）圖示新增應用程式，暱稱隨意，**不用**勾 Firebase Hosting。
 3. 畫面會給你一段 `firebaseConfig`，把裡面的值貼到 `js/firebase-config.js`。
-4. 同一個檔案的 `allowedEmail` 填你要登入的 Gmail。
+4. 同一個檔案的 `allowedEmail` 是選填的。repo 公開時建議留空，以免公開你的 email；只讓你本人讀寫的工作由安全規則負責。
 
 > `apiKey` 等設定放在公開 repo 沒關係，它不是密碼。真正擋住別人的是第 4 步的安全規則。
 
@@ -44,7 +44,7 @@ firestore.rules         ← 貼到 Firebase 的安全規則
 
 ### 4. 貼上安全規則
 
-1. 打開 `firestore.rules`，把 `YOUR_EMAIL@gmail.com` 改成你的 Gmail。
+1. 複製 `firestore.rules` 的內容，**貼到 Console 之後**再把 `YOUR_EMAIL@gmail.com` 改成你的 Gmail（不要改 repo 裡的檔案，否則 email 會公開）。
 2. Firestore Database →「規則」分頁 → 把整個檔案內容貼上 →「發布」。
 
 ### 5. 放到 GitHub Pages
