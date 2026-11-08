@@ -654,12 +654,34 @@ legend,
 .field select,
 .field textarea {
   width: 100%;
+  min-width: 0;
   padding: 10px 12px;
   font-size: 16px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--bg);
   min-height: 44px;
+}
+
+/* 單行輸入框統一高度（日期欄在 iPhone 上原本會比較高） */
+.field input {
+  height: 46px;
+  line-height: 24px;
+}
+
+/* iPhone（iOS 上所有瀏覽器都是 WebKit）：日期欄有內建最小寬度、文字置中，會蓋到旁邊的欄位 */
+@supports (-webkit-touch-callout: none) {
+  .field input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    text-align: left;
+  }
+
+  .field input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+    margin: 0;
+  }
 }
 
 .field textarea {
