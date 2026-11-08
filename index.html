@@ -36,6 +36,7 @@
       <button type="button" data-view="home" aria-current="page">記帳</button>
       <button type="button" data-view="list">明細</button>
       <button type="button" data-view="stats">統計</button>
+      <button type="button" data-view="weight">體重</button>
       <button type="button" data-view="settings">設定</button>
     </nav>
 
@@ -122,6 +123,88 @@
         <div class="table-wrap">
           <table id="catTable" class="data-table matrix"></table>
         </div>
+      </section>
+
+      <!-- 體重 -->
+      <section id="view-weight" class="view" hidden>
+        <div id="wHero" class="hero"></div>
+
+        <div id="wBody" class="home-grid">
+          <form id="wForm" class="panel" autocomplete="off" novalidate>
+            <h2>記體重</h2>
+            <div class="row-2">
+              <label class="field">
+                <span>日期</span>
+                <input id="wDate" type="date" required>
+              </label>
+              <label class="field">
+                <span>體重（公斤）</span>
+                <input id="wWeight" type="number" inputmode="decimal" min="20" max="400" step="0.1" required>
+              </label>
+            </div>
+            <p id="wFormHint" class="hint"></p>
+            <p id="wFormMsg" class="form-msg" role="alert"></p>
+            <div class="btn-row">
+              <button class="btn btn-primary" type="submit">記下體重</button>
+              <button id="wDelete" class="btn btn-ghost btn-danger" type="button" hidden>刪除這天</button>
+            </div>
+          </form>
+
+          <section class="panel">
+            <div class="w-chart-head">
+              <h2>體重變化</h2>
+              <div class="seg" role="group" aria-label="圖表範圍">
+                <button type="button" data-wrange="recent" aria-pressed="true">近期</button>
+                <button type="button" data-wrange="all" aria-pressed="false">整個計畫</button>
+              </div>
+            </div>
+            <div id="wLegend" class="w-legend" aria-hidden="true">
+              <span><i class="sw sw-avg"></i>7 天平均</span>
+              <span><i class="sw sw-day"></i>每天</span>
+              <span><i class="sw sw-plan"></i>計畫</span>
+            </div>
+            <div id="wChart" class="w-chart"></div>
+          </section>
+        </div>
+
+        <div id="wTables">
+          <h2 class="page-title">每週目標</h2>
+          <div class="table-wrap">
+            <table id="wWeeks" class="data-table"></table>
+          </div>
+          <p class="hint">「週末目標」是那一週最後一天照計畫應該到的體重；「進度」是拿那一週的平均，跟同幾天的計畫比。</p>
+
+          <h2 class="page-title">紀錄</h2>
+          <ul id="wList" class="entry-list"></ul>
+        </div>
+
+        <details id="wGoalBox" class="panel w-goal">
+          <summary id="wGoalSummary">調整目標</summary>
+          <form id="wGoalForm" novalidate>
+            <p id="wGoalIntro" class="hint"></p>
+            <div class="row-2">
+              <label class="field">
+                <span>開始日期</span>
+                <input id="gStartDate" type="date" required>
+              </label>
+              <label class="field">
+                <span>現在體重（公斤）</span>
+                <input id="gStartWeight" type="number" inputmode="decimal" min="20" max="400" step="0.1" required>
+              </label>
+              <label class="field">
+                <span>目標日期</span>
+                <input id="gTargetDate" type="date" required>
+              </label>
+              <label class="field">
+                <span>目標體重（公斤）</span>
+                <input id="gTargetWeight" type="number" inputmode="decimal" min="20" max="400" step="0.1" required>
+              </label>
+            </div>
+            <p id="gPreview" class="hint"></p>
+            <p id="gMsg" class="form-msg" role="alert"></p>
+            <button class="btn btn-primary" type="submit">儲存目標</button>
+          </form>
+        </details>
       </section>
 
       <!-- 設定 -->

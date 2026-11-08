@@ -2,6 +2,7 @@ import { firebaseConfig, allowedEmail } from './firebase-config.js';
 import { createStore } from './store.js';
 import * as C from './calc.js';
 import * as CSV from './csv.js';
+import { createWeightView } from './weight-view.js';
 
 // 預設值 = 原本 Excel「設定」和「清單」頁的內容；登入後在「設定」改，會存到 Firestore
 const DEFAULT_SETTINGS = {
@@ -32,6 +33,11 @@ const state = {
   unwatch: null,
   unwatchSettings: null,
   editId: null,
+  // 體重
+  weights: [],
+  weightGoal: null,
+  weightLoaded: false,
+  unwatchWeight: null,
 };
 
 /* ---------- 小工具 ---------- */
@@ -125,9 +131,11 @@ async function boot() {
 function onUser(user) {
   if (state.unwatch) state.unwatch();
   if (state.unwatchSettings) state.unwatchSettings();
-  state.unwatch = state.unwatchSettings = null;
+  if (state.unwatchWeight) state.unwatchWeight();
+  state.unwatch = state.unwatchSettings = state.unwatchWeight = null;
   state.user = user;
   state.loaded = false;
+  state.weightLoaded = false;
   $('boot').hidden = true;
 
   if (!user) {
@@ -146,6 +154,29 @@ function onUser(user) {
   $('app').hidden = false;
   renderAccount();
   state.unwatchSettings = state.store.watchSettings(onSettings, onDbError);
+  startWeightWatch();
+}
+
+function startWeightWatch() {
+  let gotRecords = false;
+  let gotGoal = false;
+  const done = () => {
+    state.weightLoaded = gotRecords && gotGoal;
+    weightView.render();
+  };
+  state.unwatchWeight = state.store.watchWeight({
+    onRecords(list) {
+      state.weights = list.sort((a, b) => a.date.localeCompare(b.date));
+      gotRecords = true;
+      done();
+    },
+    onGoal(goal) {
+      state.weightGoal = goal;
+      gotGoal = true;
+      done();
+    },
+    onError: onDbError,
+  });
 }
 
 function onSettings(raw) {
@@ -223,6 +254,7 @@ function renderAll() {
     renderDay();
   } else if (state.view === 'list') renderList();
   else if (state.view === 'stats') renderStats();
+  else if (state.view === 'weight') weightView.render();
 }
 
 /* ---------- 首頁：本週狀況 ---------- */
@@ -817,12 +849,16 @@ function checkToday() {
     state.selDay = t;
     $('fDate').value = t;
   }
+  weightView.onDayChange();
   renderAll();
 }
 
 /* ---------- 綁定事件 ---------- */
 
+let weightView = null;
+
 function bindUI() {
+  weightView = createWeightView({ state, $, esc, toast, onDbError, dayLabel });
   $('signInBtn').onclick = signIn;
   $('signOutBtn').onclick = () => state.store.signOut();
   $('clearDemoBtn').onclick = () => {

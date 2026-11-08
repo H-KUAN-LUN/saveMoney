@@ -122,6 +122,33 @@ async function createFirebaseStore(firebaseConfig, allowedEmail) {
       return fs.setDoc(ref('meta', 'settings'), s);
     },
 
+    /* ----- 體重 ----- */
+
+    watchWeight({ onRecords, onGoal, onError }) {
+      const u1 = fs.onSnapshot(
+        col('weights'),
+        (snap) => onRecords(snap.docs.map((d) => ({ date: d.id, weight: Number(d.data().weight) }))),
+        onError,
+      );
+      const u2 = fs.onSnapshot(ref('meta', 'weight'), (s) => onGoal(s.exists() ? s.data() : null), onError);
+      return () => {
+        u1();
+        u2();
+      };
+    },
+
+    setWeight(date, weight) {
+      return fs.setDoc(ref('weights', date), { date, weight: Number(weight), updatedAt: stamp() });
+    },
+
+    deleteWeight(date) {
+      return fs.deleteDoc(ref('weights', date));
+    },
+
+    saveWeightGoal(goal) {
+      return fs.setDoc(ref('meta', 'weight'), goal);
+    },
+
     async importBatch(entries, journals) {
       const ops = [
         ...entries.map((e) => (b) => b.set(fs.doc(col('entries')), { ...cleanEntry(e), createdAt: stamp(), updatedAt: stamp() })),
@@ -174,8 +201,15 @@ function createLocalStore() {
     }
   };
 
+  if (!data.weights) data.weights = {};
   let watcher = null;
   let settingsCb = null;
+  let weightCbs = null;
+  const emitWeight = () => {
+    if (!weightCbs) return;
+    weightCbs.onRecords(Object.entries(data.weights).map(([date, weight]) => ({ date, weight })));
+    weightCbs.onGoal(data.weightGoal || null);
+  };
   const emit = () => {
     if (watcher) {
       const { startDate, onEntries, onJournal } = watcher;
@@ -236,6 +270,26 @@ function createLocalStore() {
       save();
       if (settingsCb) settingsCb(s);
     },
+    watchWeight(cbs) {
+      weightCbs = cbs;
+      later(emitWeight);
+      return () => (weightCbs = null);
+    },
+    async setWeight(date, weight) {
+      data.weights[date] = Number(weight);
+      save();
+      emitWeight();
+    },
+    async deleteWeight(date) {
+      delete data.weights[date];
+      save();
+      emitWeight();
+    },
+    async saveWeightGoal(goal) {
+      data.weightGoal = goal;
+      save();
+      emitWeight();
+    },
     async importBatch(entries, journals) {
       let t = Date.now();
       for (const e of entries) data.entries[newId()] = { ...cleanEntry(e), createdAt: t++ };
@@ -250,9 +304,10 @@ function createLocalStore() {
       };
     },
     clearDemo() {
-      data = { entries: {}, journal: {}, settings: null };
+      data = { entries: {}, journal: {}, settings: null, weights: {}, weightGoal: null };
       save();
       emit();
+      emitWeight();
       if (settingsCb) settingsCb(null);
     },
   };
