@@ -22,6 +22,14 @@ service cloud.firestore {
         && d.note is string && d.note.size() <= 500;
     }
 
+    function validMeasure(d, day) {
+      return d.keys().hasOnly(['date', 'weight', 'waist', 'updatedAt'])
+        && d.date == day
+        && d.keys().hasAny(['weight', 'waist'])
+        && (!('weight' in d) || (d.weight is number && d.weight >= 20 && d.weight <= 400))
+        && (!('waist' in d) || (d.waist is number && d.waist >= 30 && d.waist <= 250));
+    }
+
     match /users/{uid} {
       // 帳目
       match /entries/{id} {
@@ -39,15 +47,10 @@ service cloud.firestore {
           && request.resource.data.text.size() <= 5000;
       }
 
-      // 每天體重，文件 id 就是日期
+      // 每天的體重和腰圍（文件 id 就是日期；兩個都選填，至少要有一個）
       match /weights/{day} {
         allow read, delete: if isOwner(uid);
-        allow create, update: if isOwner(uid)
-          && request.resource.data.keys().hasOnly(['date', 'weight', 'updatedAt'])
-          && request.resource.data.date == day
-          && request.resource.data.weight is number
-          && request.resource.data.weight >= 20
-          && request.resource.data.weight <= 400;
+        allow create, update: if isOwner(uid) && validMeasure(request.resource.data, day);
       }
 
       // 設定（settings：每週預算、開始日、分類清單；weight：減重目標）

@@ -122,14 +122,10 @@ async function createFirebaseStore(firebaseConfig, allowedEmail) {
       return fs.setDoc(ref('meta', 'settings'), s);
     },
 
-    /* ----- 體重 ----- */
+    /* ----- 體重、腰圍（每天一筆，兩個都是選填） ----- */
 
     watchWeight({ onRecords, onGoal, onError }) {
-      const u1 = fs.onSnapshot(
-        col('weights'),
-        (snap) => onRecords(snap.docs.map((d) => ({ date: d.id, weight: Number(d.data().weight) }))),
-        onError,
-      );
+      const u1 = fs.onSnapshot(col('weights'), (snap) => onRecords(snap.docs.map((d) => toMeasure(d.id, d.data()))), onError);
       const u2 = fs.onSnapshot(ref('meta', 'weight'), (s) => onGoal(s.exists() ? s.data() : null), onError);
       return () => {
         u1();
@@ -137,11 +133,15 @@ async function createFirebaseStore(firebaseConfig, allowedEmail) {
       };
     },
 
-    setWeight(date, weight) {
-      return fs.setDoc(ref('weights', date), { date, weight: Number(weight), updatedAt: stamp() });
+    /** 整筆覆蓋；沒填的欄位不存 */
+    setMeasure(date, m) {
+      const data = { date, updatedAt: stamp() };
+      if (m.weight != null) data.weight = Number(m.weight);
+      if (m.waist != null) data.waist = Number(m.waist);
+      return fs.setDoc(ref('weights', date), data);
     },
 
-    deleteWeight(date) {
+    deleteMeasure(date) {
       return fs.deleteDoc(ref('weights', date));
     },
 
@@ -179,6 +179,13 @@ function pick(data) {
   return o;
 }
 
+/** 每日紀錄統一成 {date, weight, waist}，沒有的是 null（舊版只存數字的也轉過來） */
+function toMeasure(date, v) {
+  const num = (x) => (typeof x === 'number' && Number.isFinite(x) ? x : null);
+  if (typeof v === 'number') return { date, weight: v, waist: null };
+  return { date, weight: num(v && v.weight), waist: num(v && v.waist) };
+}
+
 /* ---------------- 示範模式（localStorage） ---------------- */
 
 function createLocalStore() {
@@ -207,7 +214,7 @@ function createLocalStore() {
   let weightCbs = null;
   const emitWeight = () => {
     if (!weightCbs) return;
-    weightCbs.onRecords(Object.entries(data.weights).map(([date, weight]) => ({ date, weight })));
+    weightCbs.onRecords(Object.entries(data.weights).map(([date, v]) => toMeasure(date, v)));
     weightCbs.onGoal(data.weightGoal || null);
   };
   const emit = () => {
@@ -275,12 +282,12 @@ function createLocalStore() {
       later(emitWeight);
       return () => (weightCbs = null);
     },
-    async setWeight(date, weight) {
-      data.weights[date] = Number(weight);
+    async setMeasure(date, m) {
+      data.weights[date] = { weight: m.weight != null ? Number(m.weight) : null, waist: m.waist != null ? Number(m.waist) : null };
       save();
       emitWeight();
     },
-    async deleteWeight(date) {
+    async deleteMeasure(date) {
       delete data.weights[date];
       save();
       emitWeight();

@@ -131,21 +131,25 @@
 
         <div id="wBody" class="home-grid">
           <form id="wForm" class="panel" autocomplete="off" novalidate>
-            <h2>記體重</h2>
+            <h2>記體重、腰圍</h2>
+            <label class="field">
+              <span>日期</span>
+              <input id="wDate" type="date" required>
+            </label>
             <div class="row-2">
               <label class="field">
-                <span>日期</span>
-                <input id="wDate" type="date" required>
+                <span>體重（公斤）</span>
+                <input id="wWeight" type="number" inputmode="decimal" min="20" max="400" step="0.1">
               </label>
               <label class="field">
-                <span>體重（公斤）</span>
-                <input id="wWeight" type="number" inputmode="decimal" min="20" max="400" step="0.1" required>
+                <span>腰圍（公分，選填）</span>
+                <input id="wWaist" type="number" inputmode="decimal" min="30" max="250" step="0.1">
               </label>
             </div>
             <p id="wFormHint" class="hint"></p>
             <p id="wFormMsg" class="form-msg" role="alert"></p>
             <div class="btn-row">
-              <button class="btn btn-primary" type="submit">記下體重</button>
+              <button class="btn btn-primary" type="submit">儲存這天</button>
               <button id="wDelete" class="btn btn-ghost btn-danger" type="button" hidden>刪除這天</button>
             </div>
           </form>
@@ -164,6 +168,10 @@
               <span><i class="sw sw-plan"></i>計畫</span>
             </div>
             <div id="wChart" class="w-chart"></div>
+            <div id="wWaistBox" hidden>
+              <h3 class="w-sub">腰圍（公分）</h3>
+              <div id="wWaistChart" class="w-chart w-chart-sm"></div>
+            </div>
           </section>
         </div>
 

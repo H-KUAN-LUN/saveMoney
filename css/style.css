@@ -484,11 +484,25 @@ main {
   margin-bottom: 14px;
 }
 
-#wList .entry-amt::after {
-  content: " kg";
+#wList .unit-sm {
+  font-family: var(--font);
   font-size: 14px;
   font-weight: 500;
   color: var(--muted);
+}
+
+.w-sub {
+  margin: 18px 0 4px;
+  font-size: 15px;
+}
+
+.w-chart-sm {
+  min-height: 160px;
+}
+
+.w-chart .empty {
+  padding: 16px 0;
+  font-size: 14px;
 }
 
 .hero-note {
