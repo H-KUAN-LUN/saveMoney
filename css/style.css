@@ -685,14 +685,16 @@ legend,
 
 /* iPhone（iOS 上所有瀏覽器都是 WebKit）：日期欄有內建最小寬度、文字置中，會蓋到旁邊的欄位 */
 @supports (-webkit-touch-callout: none) {
-  .field input[type="date"] {
+  .field input[type="date"],
+  .field input[type="month"] {
     -webkit-appearance: none;
     appearance: none;
     display: block;
     text-align: left;
   }
 
-  .field input[type="date"]::-webkit-date-and-time-value {
+  .field input[type="date"]::-webkit-date-and-time-value,
+  .field input[type="month"]::-webkit-date-and-time-value {
     text-align: left;
     margin: 0;
   }
@@ -1271,6 +1273,126 @@ legend,
 
 .cat-bars .empty {
   display: block;
+}
+
+/* ---------- 統計：每月 ---------- */
+
+.stats-mode {
+  margin: 20px 0 4px;
+}
+
+.month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 12px;
+}
+
+.month-nav h2 {
+  font-size: 20px;
+}
+
+.icon-btn {
+  min-width: 44px;
+  padding: 0;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.icon-btn:disabled {
+  opacity: 0.3;
+}
+
+.mt-label {
+  color: var(--muted);
+}
+
+.mt-amount {
+  font-family: var(--num);
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1.05;
+  margin: 2px 0 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mt-bar {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--sunk);
+}
+
+.mt-bar span {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.mt-daily {
+  background: var(--viz-avg);
+}
+
+.mt-fixed {
+  background: var(--viz-plan);
+}
+
+.mt-rows {
+  margin: 12px 0 0;
+}
+
+.mt-rows div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.mt-rows dd {
+  margin: 0;
+  font-family: var(--num);
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sw-box {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.month-total .hint {
+  margin: 10px 0 0;
+}
+
+.fx-sum {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  font-weight: 700;
+  border-bottom: 2px solid var(--ink);
+}
+
+.entry.is-off {
+  opacity: 0.55;
+}
+
+.fx-form {
+  margin-top: 12px;
+}
+
+.fx-form h3 {
+  font-size: 17px;
+  margin-bottom: 12px;
 }
 
 /* ---------- 設定 ---------- */

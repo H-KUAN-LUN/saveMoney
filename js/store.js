@@ -122,6 +122,12 @@ async function createFirebaseStore(firebaseConfig, allowedEmail) {
       return fs.setDoc(ref('meta', 'settings'), s);
     },
 
+    /** 讀某段日期的帳目（月報表看比較早的月份用） */
+    async fetchEntriesRange(from, to) {
+      const snap = await fs.getDocs(fs.query(col('entries'), fs.where('date', '>=', from), fs.where('date', '<=', to)));
+      return snap.docs.map((d) => ({ id: d.id, ...pick(d.data()) }));
+    },
+
     /* ----- 體重、腰圍（每天一筆，兩個都是選填） ----- */
 
     watchWeight({ onRecords, onGoal, onError }) {
@@ -276,6 +282,11 @@ function createLocalStore() {
       data.settings = s;
       save();
       if (settingsCb) settingsCb(s);
+    },
+    async fetchEntriesRange(from, to) {
+      return Object.entries(data.entries)
+        .filter(([, e]) => e.date >= from && e.date <= to)
+        .map(([id, e]) => ({ id, ...e }));
     },
     watchWeight(cbs) {
       weightCbs = cbs;

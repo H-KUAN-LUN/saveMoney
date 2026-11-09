@@ -228,3 +228,72 @@ export function categoryMatrix(entries, settings, nWeeks) {
   for (const r of list) r.share = grand === 0 ? 0 : r.total / grand;
   return { rows: list, weekTotals, grand };
 }
+
+/* ---------- 月報表 ---------- */
+
+const pad2 = (n) => String(n).padStart(2, '0');
+
+/** '2026-11' → {start:'2026-11-01', end:'2026-11-30', days:30} */
+export function monthRange(month) {
+  const [y, m] = month.split('-').map(Number);
+  const start = `${y}-${pad2(m)}-01`;
+  const next = m === 12 ? `${y + 1}-01-01` : `${y}-${pad2(m + 1)}-01`;
+  const end = fromDays(toDays(next) - 1);
+  return { start, end, days: toDays(next) - toDays(start) };
+}
+
+export function addMonths(month, n) {
+  const [y, m] = month.split('-').map(Number);
+  const t = y * 12 + (m - 1) + n;
+  return `${Math.floor(t / 12)}-${pad2((t % 12) + 1)}`;
+}
+
+export const monthOf = (dateStr) => dateStr.slice(0, 7);
+
+export function isMonthStr(s) {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(s || '');
+}
+
+/** 固定支出在這個月有沒有效：開始月 ≤ 這個月 ≤ 結束月（沒填結束月 = 一直有效） */
+export function fixedActive(f, month) {
+  return f.startMonth <= month && (!f.endMonth || month <= f.endMonth);
+}
+
+/**
+ * 某個月的總花費 = 當月所有記帳 + 當月有效的固定支出
+ * @param {Array} entries 至少要包含這個月的帳目（多的會被過濾掉）
+ * @param {Array<{id,name,amount,startMonth,endMonth}>} fixedCosts
+ * @param {string} month 'YYYY-MM'
+ * @param {string[]} categories 分類順序
+ */
+export function monthSummary(entries, fixedCosts, month, categories = []) {
+  const { start, end, days } = monthRange(month);
+  const inMonth = entries.filter((e) => e.date >= start && e.date <= end);
+  const dailyTotal = inMonth.reduce((s, e) => s + amountOf(e), 0);
+
+  const byCat = new Map(categories.map((c) => [c, 0]));
+  for (const e of inMonth) {
+    const c = e.category || '未分類';
+    byCat.set(c, (byCat.get(c) || 0) + amountOf(e));
+  }
+  const byCategory = [...byCat.entries()]
+    .filter(([, v]) => v !== 0)
+    .map(([category, total]) => ({ category, total, share: dailyTotal ? total / dailyTotal : 0 }))
+    .sort((a, b) => b.total - a.total);
+
+  const items = (fixedCosts || [])
+    .filter((f) => fixedActive(f, month))
+    .map((f) => ({ ...f, amount: Number(f.amount) || 0 }))
+    .sort((a, b) => b.amount - a.amount);
+  const fixedTotal = items.reduce((s, f) => s + f.amount, 0);
+
+  return {
+    month,
+    start,
+    end,
+    days,
+    daily: { total: dailyTotal, count: inMonth.length, byCategory },
+    fixed: { items, total: fixedTotal },
+    total: dailyTotal + fixedTotal,
+  };
+}

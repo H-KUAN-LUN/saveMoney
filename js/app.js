@@ -3,6 +3,7 @@ import { createStore } from './store.js';
 import * as C from './calc.js';
 import * as CSV from './csv.js';
 import { createWeightView } from './weight-view.js';
+import { createMonthView } from './month-view.js';
 
 // 預設值 = 原本 Excel「設定」和「清單」頁的內容；登入後在「設定」改，會存到 Firestore
 const DEFAULT_SETTINGS = {
@@ -29,6 +30,7 @@ const state = {
   view: 'home',
   listWeek: 'all',
   catRange: 'cur',
+  statsMode: 'week',
   summary: null,
   unwatch: null,
   unwatchSettings: null,
@@ -136,6 +138,7 @@ function onUser(user) {
   state.user = user;
   state.loaded = false;
   state.weightLoaded = false;
+  monthView.reset();
   $('boot').hidden = true;
 
   if (!user) {
@@ -185,8 +188,10 @@ function onSettings(raw) {
   s.totalWeeks = Math.max(1, parseInt(s.totalWeeks, 10) || 1);
   if (!Array.isArray(s.categories) || !s.categories.length) s.categories = DEFAULT_SETTINGS.categories;
   if (!Array.isArray(s.payments)) s.payments = DEFAULT_SETTINGS.payments;
+  if (!Array.isArray(s.fixedCosts)) s.fixedCosts = [];
   const startChanged = s.startDate !== state.settings.startDate;
   state.settings = s;
+  if (startChanged) monthView.reset();
   if (!state.unwatch || startChanged) startWatch();
   fillSettingsForm();
   renderAll();
@@ -253,7 +258,10 @@ function renderAll() {
     renderHero();
     renderDay();
   } else if (state.view === 'list') renderList();
-  else if (state.view === 'stats') renderStats();
+  else if (state.view === 'stats') {
+    if (state.statsMode === 'month') monthView.render();
+    else renderStats();
+  }
   else if (state.view === 'weight') weightView.render();
 }
 
@@ -717,8 +725,13 @@ function saveSettings(ev) {
   msg.textContent = '';
   state.settingsSig = '';
   document.activeElement.blur();
-  state.store.saveSettings(s).catch(onDbError);
+  saveSettingsPatch(s);
   toast('設定已儲存');
+}
+
+/** 設定是同一份文件（含固定支出），只改其中幾項，其他保留 */
+function saveSettingsPatch(patch) {
+  state.store.saveSettings({ ...state.settings, ...patch }).catch(onDbError);
 }
 
 function renderAccount() {
@@ -856,9 +869,23 @@ function checkToday() {
 /* ---------- 綁定事件 ---------- */
 
 let weightView = null;
+let monthView = null;
 
 function bindUI() {
   weightView = createWeightView({ state, $, esc, toast, onDbError, dayLabel });
+  monthView = createMonthView({ state, $, esc, toast, onDbError, money, saveSettingsPatch });
+
+  // 統計：每週 / 每月（記住這台裝置上次選的）
+  const setStatsMode = (mode) => {
+    state.statsMode = mode === 'month' ? 'month' : 'week';
+    pref.set('smode', state.statsMode);
+    for (const b of document.querySelectorAll('[data-smode]')) b.setAttribute('aria-pressed', String(b.dataset.smode === state.statsMode));
+    $('statsWeek').hidden = state.statsMode !== 'week';
+    $('statsMonth').hidden = state.statsMode !== 'month';
+    if (state.view === 'stats') renderAll();
+  };
+  for (const b of document.querySelectorAll('[data-smode]')) b.addEventListener('click', () => setStatsMode(b.dataset.smode));
+  setStatsMode(pref.get('smode') || 'week');
   $('signInBtn').onclick = signIn;
   $('signOutBtn').onclick = () => state.store.signOut();
   $('clearDemoBtn').onclick = () => {
