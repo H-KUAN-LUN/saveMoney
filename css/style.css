@@ -1387,7 +1387,36 @@ legend,
 }
 
 .fx-form {
-  margin-top: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.fx-intro {
+  margin: 0 0 4px;
+}
+
+#fxList {
+  margin-bottom: 14px;
+}
+
+/* 月報表裡只看不能點的固定支出 */
+.fx-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+#fixedSection {
+  scroll-margin-top: 72px;
+}
+
+.btn-sm {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 14px;
 }
 
 .fx-form h3 {

@@ -4,6 +4,7 @@ import * as C from './calc.js';
 import * as CSV from './csv.js';
 import { createWeightView } from './weight-view.js';
 import { createMonthView } from './month-view.js';
+import { createFixedView } from './fixed-view.js';
 
 // 預設值 = 原本 Excel「設定」和「清單」頁的內容；登入後在「設定」改，會存到 Firestore
 const DEFAULT_SETTINGS = {
@@ -139,6 +140,7 @@ function onUser(user) {
   state.loaded = false;
   state.weightLoaded = false;
   monthView.reset();
+  fixedView.reset();
   $('boot').hidden = true;
 
   if (!user) {
@@ -263,6 +265,7 @@ function renderAll() {
     else renderStats();
   }
   else if (state.view === 'weight') weightView.render();
+  else if (state.view === 'settings') fixedView.render();
 }
 
 /* ---------- 首頁：本週狀況 ---------- */
@@ -870,10 +873,22 @@ function checkToday() {
 
 let weightView = null;
 let monthView = null;
+let fixedView = null;
 
 function bindUI() {
   weightView = createWeightView({ state, $, esc, toast, onDbError, dayLabel });
-  monthView = createMonthView({ state, $, esc, toast, onDbError, money, saveSettingsPatch });
+  fixedView = createFixedView({ state, $, esc, toast, money, saveSettingsPatch });
+  monthView = createMonthView({
+    state,
+    $,
+    esc,
+    onDbError,
+    money,
+    goToFixed() {
+      setView('settings');
+      requestAnimationFrame(() => $('fixedSection').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    },
+  });
 
   // 統計：每週 / 每月（記住這台裝置上次選的）
   const setStatsMode = (mode) => {

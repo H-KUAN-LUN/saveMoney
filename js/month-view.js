@@ -1,22 +1,18 @@
-// 「統計 → 每月」：當月記帳 + 固定支出 = 這個月總共花多少；固定支出的新增、修改、刪除
-// 固定支出存在設定（meta/settings）的 fixedCosts 裡：[{id, name, amount, startMonth, endMonth}]
+// 「統計 → 每月」：當月記帳 + 固定支出 = 這個月總共花多少
+// 固定支出在「設定」頁管理，這裡只顯示當月有效的項目
 
 import * as C from './calc.js';
+import { shortMonth } from './fixed-view.js';
 
 const monthLabel = (m) => {
   const [y, mo] = m.split('-').map(Number);
   return `${y} 年 ${mo} 月`;
 };
-const shortMonth = (m) => {
-  const [y, mo] = m.split('-').map(Number);
-  return `${y}/${mo}`;
-};
 
-export function createMonthView({ state, $, esc, toast, onDbError, money, saveSettingsPatch }) {
+export function createMonthView({ state, $, esc, onDbError, money, goToFixed }) {
   let month = C.monthOf(state.today);
-  let cache = { key: '', entries: [] }; // 開始日以前的帳目（不會即時更新，切月份時重讀）
+  let cache = { key: '', entries: [] }; // 預算開始日以前的帳目（不會即時更新，切月份時重讀）
   let loadingKey = '';
-  let editId = null;
 
   const fixedCosts = () => (Array.isArray(state.settings.fixedCosts) ? state.settings.fixedCosts : []);
 
@@ -28,8 +24,6 @@ export function createMonthView({ state, $, esc, toast, onDbError, money, saveSe
     return { min, max };
   }
 
-  /* ---------- 整頁 ---------- */
-
   function render() {
     if (state.view !== 'stats' || state.statsMode !== 'month' || !state.user) return;
     const b = bounds();
@@ -38,7 +32,6 @@ export function createMonthView({ state, $, esc, toast, onDbError, money, saveSe
     $('mTitle').textContent = monthLabel(month);
     $('mPrev').disabled = month <= b.min;
     $('mNext').disabled = month >= b.max;
-    renderFixedList();
 
     // 預算開始日以後的帳目已經在畫面上（即時同步）；更早的要另外讀
     const { start, end } = C.monthRange(month);
@@ -81,6 +74,22 @@ export function createMonthView({ state, $, esc, toast, onDbError, money, saveSe
       </dl>
       ${isCur ? '<p class="hint">生活費算到今天為止，固定支出算整個月。</p>' : ''}`;
 
+    // 固定支出（只看）
+    $('mFixed').innerHTML = ms.fixed.items.length
+      ? ms.fixed.items
+          .map(
+            (f) => `<li class="fx-row">
+              <span class="entry-main">
+                <span class="entry-item">${esc(f.name)}</span>
+                <span class="entry-meta"><span>${shortMonth(f.startMonth)} 起${f.endMonth ? `，到 ${shortMonth(f.endMonth)}` : ''}</span></span>
+              </span>
+              <span class="entry-amt">${money(f.amount)}</span>
+            </li>`,
+          )
+          .join('') + `<li class="fx-sum"><span>合計</span><span class="entry-amt">${money(ms.fixed.total)}</span></li>`
+      : `<li class="empty">${fixedCosts().length ? '這個月沒有固定支出。' : '還沒有設定固定支出。按「到設定修改」新增房租、手機費、訂閱等。'}</li>`;
+
+    // 生活費分類
     const cats = ms.daily.byCategory;
     const max = cats.length ? cats[0].total : 1;
     $('mCats').innerHTML = cats.length
@@ -98,109 +107,6 @@ export function createMonthView({ state, $, esc, toast, onDbError, money, saveSe
       : '<li class="empty">這個月沒有記帳。</li>';
   }
 
-  /* ---------- 固定支出清單 ---------- */
-
-  function renderFixedList() {
-    const list = [...fixedCosts()];
-    if (!list.length) {
-      $('fxList').innerHTML = '<li class="empty">還沒有固定支出。按下面的「新增固定支出」加上房租、手機費、訂閱等。</li>';
-      return;
-    }
-    // 這個月有效的排前面（金額大到小），其他的排後面
-    const active = list.filter((f) => C.fixedActive(f, month)).sort((a, b) => b.amount - a.amount);
-    const other = list.filter((f) => !C.fixedActive(f, month)).sort((a, b) => a.startMonth.localeCompare(b.startMonth));
-    const total = active.reduce((s, f) => s + (Number(f.amount) || 0), 0);
-    const period = (f) => `${shortMonth(f.startMonth)} 起${f.endMonth ? `，到 ${shortMonth(f.endMonth)}` : ''}`;
-    const item = (f, on) => `<li><button type="button" class="entry ${on ? '' : 'is-off'}" data-fx="${esc(f.id)}">
-        <span class="entry-main">
-          <span class="entry-item">${esc(f.name)}</span>
-          <span class="entry-meta"><span>${period(f)}</span>${
-            on ? '' : `<span>${f.startMonth > month ? '這個月還沒開始' : '已經結束'}</span>`
-          }</span>
-        </span>
-        <span class="entry-amt">${money(f.amount)}</span>
-      </button></li>`;
-    $('fxList').innerHTML =
-      active.map((f) => item(f, true)).join('') +
-      `<li class="fx-sum"><span>${monthLabel(month)}合計</span><span class="entry-amt">${money(total)}</span></li>` +
-      other.map((f) => item(f, false)).join('');
-  }
-
-  /* ---------- 新增 / 修改 / 刪除 ---------- */
-
-  function openForm(f) {
-    editId = f ? f.id : null;
-    $('fxFormTitle').textContent = f ? '修改固定支出' : '新增固定支出';
-    $('fxSave').textContent = f ? '儲存' : '新增';
-    $('fxName').value = f ? f.name : '';
-    $('fxAmount').value = f ? f.amount : '';
-    $('fxStart').value = f ? f.startMonth : month;
-    $('fxEnd').value = f ? f.endMonth || '' : '';
-    $('fxMsg').textContent = '';
-    $('fxDelete').hidden = !f;
-    disarm();
-    $('fxForm').hidden = false;
-    $('fxAdd').hidden = true;
-    $('fxForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    $('fxName').focus({ preventScroll: true });
-  }
-
-  function closeForm() {
-    editId = null;
-    $('fxForm').hidden = true;
-    $('fxAdd').hidden = false;
-  }
-
-  function onSubmit(ev) {
-    ev.preventDefault();
-    const msg = $('fxMsg');
-    const name = $('fxName').value.trim();
-    const amount = Number($('fxAmount').value);
-    const startMonth = $('fxStart').value.trim();
-    const endMonth = $('fxEnd').value.trim();
-    if (!name) return void (msg.textContent = '請填名稱。');
-    if (!$('fxAmount').value || !(amount > 0)) return void (msg.textContent = '請填每月金額。');
-    if (!C.isMonthStr(startMonth)) return void (msg.textContent = '請選開始月份（格式像 2026-11）。');
-    if (endMonth && !C.isMonthStr(endMonth)) return void (msg.textContent = '結束月份格式不對（像 2026-12），不用的話留空。');
-    if (endMonth && endMonth < startMonth) return void (msg.textContent = '結束月份要在開始月份之後。');
-    msg.textContent = '';
-    const item = { id: editId || Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name.slice(0, 30), amount, startMonth, endMonth };
-    const list = fixedCosts().filter((f) => f.id !== item.id);
-    list.push(item);
-    saveSettingsPatch({ fixedCosts: list });
-    toast(editId ? `已更新 ${item.name}` : `已新增 ${item.name} ${money(amount)}／月`);
-    closeForm();
-  }
-
-  let armTimer = null;
-  function disarm() {
-    clearTimeout(armTimer);
-    $('fxDelete').classList.remove('armed');
-    $('fxDelete').textContent = '刪除';
-  }
-
-  function onDelete() {
-    const b = $('fxDelete');
-    if (!b.classList.contains('armed')) {
-      b.classList.add('armed');
-      b.textContent = '確定刪除？';
-      armTimer = setTimeout(disarm, 4000);
-      return;
-    }
-    const before = fixedCosts();
-    const f = before.find((x) => x.id === editId);
-    saveSettingsPatch({ fixedCosts: before.filter((x) => x.id !== editId) });
-    closeForm();
-    if (f) {
-      toast(`已刪除 ${f.name}`, '復原', () => {
-        saveSettingsPatch({ fixedCosts: [...fixedCosts().filter((x) => x.id !== f.id), f] });
-        toast('已復原');
-      });
-    }
-  }
-
-  /* ---------- 綁定事件 ---------- */
-
   $('mPrev').addEventListener('click', () => {
     month = C.addMonths(month, -1);
     render();
@@ -209,16 +115,7 @@ export function createMonthView({ state, $, esc, toast, onDbError, money, saveSe
     month = C.addMonths(month, 1);
     render();
   });
-  $('fxAdd').addEventListener('click', () => openForm(null));
-  $('fxCancel').addEventListener('click', closeForm);
-  $('fxForm').addEventListener('submit', onSubmit);
-  $('fxDelete').addEventListener('click', onDelete);
-  $('fxList').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-fx]');
-    if (!b) return;
-    const f = fixedCosts().find((x) => x.id === b.dataset.fx);
-    if (f) openForm(f);
-  });
+  $('mFixedEdit').addEventListener('click', goToFixed);
 
   return {
     render,
@@ -226,7 +123,6 @@ export function createMonthView({ state, $, esc, toast, onDbError, money, saveSe
     reset() {
       cache = { key: '', entries: [] };
       loadingKey = '';
-      closeForm();
     },
   };
 }
